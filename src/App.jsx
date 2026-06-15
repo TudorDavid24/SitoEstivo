@@ -1,121 +1,112 @@
-import { useState } from 'react'
-import reactLogo from './assets/react.svg'
-import viteLogo from './assets/vite.svg'
-import heroImg from './assets/hero.png'
+import { useState, useEffect, useCallback } from 'react'
+import { searchMovies, getPopularMovies } from './api/tmdb'
+import { useLocalStorage } from './hooks/useLocalStorage'
+import SearchBar from './components/SearchBar'
+import MovieCard from './components/MovieCard'
+import ReviewForm from './components/ReviewForm'
+import ReviewedMovies from './components/ReviewedMovies'
 import './App.css'
 
 function App() {
-  const [count, setCount] = useState(0)
+  const [movies, setMovies] = useState([])
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState('')
+  const [selectedMovie, setSelectedMovie] = useState(null)
+  const [tab, setTab] = useState('search')
+  const [reviews, setReviews] = useLocalStorage('movie-reviews', [])
+
+  useEffect(() => {
+    getPopularMovies()
+      .then(setMovies)
+      .catch(() => {})
+  }, [])
+
+  const handleSearch = useCallback(async (query) => {
+    setLoading(true)
+    setError('')
+    try {
+      const results = await searchMovies(query)
+      setMovies(results)
+      if (results.length === 0) setError('Nessun film trovato.')
+    } catch (err) {
+      setError(err.message)
+    } finally {
+      setLoading(false)
+    }
+  }, [])
+
+  function handleOpenReview(movie) {
+    setSelectedMovie(movie)
+  }
+
+  function handleSubmitReview(review) {
+    setReviews((prev) => [review, ...prev])
+    setSelectedMovie(null)
+  }
+
+  function handleDeleteReview(movieId) {
+    setReviews((prev) => prev.filter((r) => r.movieId !== movieId))
+  }
+
+  const reviewedIds = new Set(reviews.map((r) => r.movieId))
 
   return (
-    <>
-      <section id="center">
-        <div className="hero">
-          <img src={heroImg} className="base" width="170" height="179" alt="" />
-          <img src={reactLogo} className="framework" alt="React logo" />
-          <img src={viteLogo} className="vite" alt="Vite logo" />
-        </div>
-        <div>
-          <h1>Get started</h1>
-          <p>
-            Edit <code>src/App.jsx</code> and save to test <code>HMR</code>
-          </p>
-        </div>
-        <button
-          type="button"
-          className="counter"
-          onClick={() => setCount((count) => count + 1)}
-        >
-          Count is {count}
-        </button>
-      </section>
+    <div className="app">
+      <header className="app-header">
+        <h1>Movie Rater</h1>
+        <nav className="tabs">
+          <button
+            className={tab === 'search' ? 'active' : ''}
+            onClick={() => setTab('search')}
+          >
+            Cerca film
+          </button>
+          <button
+            className={tab === 'reviews' ? 'active' : ''}
+            onClick={() => setTab('reviews')}
+          >
+            Le mie recensioni ({reviews.length})
+          </button>
+        </nav>
+      </header>
 
-      <div className="ticks"></div>
+      <main>
+        {tab === 'search' && (
+          <section className="search-section">
+            <SearchBar onSearch={handleSearch} loading={loading} />
+            {error && <p className="error">{error}</p>}
+            <div className="movies-grid">
+              {movies.map((movie) => (
+                <MovieCard
+                  key={movie.id}
+                  movie={movie}
+                  onReview={handleOpenReview}
+                  isReviewed={reviewedIds.has(movie.id)}
+                />
+              ))}
+            </div>
+          </section>
+        )}
 
-      <section id="next-steps">
-        <div id="docs">
-          <svg className="icon" role="presentation" aria-hidden="true">
-            <use href="/icons.svg#documentation-icon"></use>
-          </svg>
-          <h2>Documentation</h2>
-          <p>Your questions, answered</p>
-          <ul>
-            <li>
-              <a href="https://vite.dev/" target="_blank">
-                <img className="logo" src={viteLogo} alt="" />
-                Explore Vite
-              </a>
-            </li>
-            <li>
-              <a href="https://react.dev/" target="_blank">
-                <img className="button-icon" src={reactLogo} alt="" />
-                Learn more
-              </a>
-            </li>
-          </ul>
-        </div>
-        <div id="social">
-          <svg className="icon" role="presentation" aria-hidden="true">
-            <use href="/icons.svg#social-icon"></use>
-          </svg>
-          <h2>Connect with us</h2>
-          <p>Join the Vite community</p>
-          <ul>
-            <li>
-              <a href="https://github.com/vitejs/vite" target="_blank">
-                <svg
-                  className="button-icon"
-                  role="presentation"
-                  aria-hidden="true"
-                >
-                  <use href="/icons.svg#github-icon"></use>
-                </svg>
-                GitHub
-              </a>
-            </li>
-            <li>
-              <a href="https://chat.vite.dev/" target="_blank">
-                <svg
-                  className="button-icon"
-                  role="presentation"
-                  aria-hidden="true"
-                >
-                  <use href="/icons.svg#discord-icon"></use>
-                </svg>
-                Discord
-              </a>
-            </li>
-            <li>
-              <a href="https://x.com/vite_js" target="_blank">
-                <svg
-                  className="button-icon"
-                  role="presentation"
-                  aria-hidden="true"
-                >
-                  <use href="/icons.svg#x-icon"></use>
-                </svg>
-                X.com
-              </a>
-            </li>
-            <li>
-              <a href="https://bsky.app/profile/vite.dev" target="_blank">
-                <svg
-                  className="button-icon"
-                  role="presentation"
-                  aria-hidden="true"
-                >
-                  <use href="/icons.svg#bluesky-icon"></use>
-                </svg>
-                Bluesky
-              </a>
-            </li>
-          </ul>
-        </div>
-      </section>
+        {tab === 'reviews' && (
+          <section className="reviews-section">
+            <h2>Le mie recensioni</h2>
+            <ReviewedMovies
+              reviews={reviews}
+              onDeleteReview={handleDeleteReview}
+            />
+          </section>
+        )}
+      </main>
 
-      <div className="ticks"></div>
-      <section id="spacer"></section>
-    </>
+      {selectedMovie && (
+        <ReviewForm
+          movie={selectedMovie}
+          onSubmit={handleSubmitReview}
+          onCancel={() => setSelectedMovie(null)}
+        />
+      )}
+    </div>
   )
 }
 
